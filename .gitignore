@@ -1,0 +1,15 @@
+# Environment variable file containing private API keys
+.env
+
+# ChromaDB vector database persistent directory
+chroma_db/
+
+# Python cache & virtual environment
+__pycache__/
+*.py[cod]
+.venv/
+.env/
+.pytest_cache/
+
+# Streamlit runtime
+.streamlit/secrets.toml

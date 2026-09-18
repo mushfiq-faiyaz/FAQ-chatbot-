@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Widget Test Page — RAG Vive FAQ Chatbot</title>
+
+  <!--
+    test.html — Widget Sandbox Page
+    =================================
+
+    WHAT THIS PAGE IS FOR:
+    This is a throwaway test page whose only job is to give widget.js a
+    realistic surface to sit on top of. A blank white page would not reveal
+    issues like z-index conflicts, font inheritance bleed, or fixed-position
+    overlap with real page content — a fake blog article does.
+
+    HOW TO USE:
+    Simply open this file directly in any browser (File > Open, or double-click).
+    No server required. The widget loads from the same folder via a relative
+    <script> path.
+
+    WHAT TO TEST:
+    - Does the floating button appear in the bottom-right corner on load?
+    - Does clicking it open/close the chat window smoothly?
+    - Does the X button and clicking outside the window close it?
+    - Does sending a message show the typing indicator for ~800ms?
+    - Does the bot reply appear after the delay?
+    - Does the input re-enable after the reply arrives?
+    - Does pressing Enter send a message? (Shift+Enter should add a newline)
+    - Does the message area scroll to the bottom automatically?
+    - Does the widget stay in place when you scroll the page?
+  -->
+
+  <style>
+    /* ── Page base styles (nothing to do with the widget) ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size:   16px;
+      line-height: 1.7;
+      color:       #1a1a2e;
+      background:  #f5f7fb;
+    }
+
+    /* Simple top navigation bar — simulates a real site header */
+    .site-nav {
+      background:    #1a1a2e;
+      color:         #fff;
+      padding:       0 16px;
+      min-height:    56px;
+      display:       flex;
+      flex-wrap:     wrap;
+      align-items:   center;
+      gap:           16px;
+      position:      sticky;
+      top:           0;
+      z-index:       100;
+      box-shadow:    0 2px 8px rgba(0,0,0,0.15);
+    }
+    .site-nav .logo { font-weight: 700; font-size: 18px; letter-spacing: -0.5px; }
+    .site-nav a { color: rgba(255,255,255,0.75); text-decoration: none; font-size: 14px; }
+    .site-nav a:hover { color: #fff; }
+
+    /* Page wrapper with a max-width so it feels like a real article page */
+    .page-wrapper {
+      max-width: 740px;
+      margin:    0 auto;
+      padding:   48px 24px 120px; /* Bottom padding so content doesn't sit under widget */
+    }
+
+    /* Article content styles */
+    .post-tag {
+      display:       inline-block;
+      background:    #e8f0fe;
+      color:         #4F8EF7;
+      font-size:     12px;
+      font-weight:   600;
+      padding:       3px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 14px;
+    }
+    h1 {
+      font-size:     2rem;
+      font-weight:   800;
+      line-height:   1.25;
+      color:         #0d0f1a;
+      margin-bottom: 16px;
+    }
+    .post-meta {
+      font-size:    13px;
+      color:        #8a94a8;
+      margin-bottom: 32px;
+      display:      flex;
+      gap:          16px;
+      align-items:  center;
+    }
+    .post-meta span::before { content: "•"; margin-right: 6px; }
+    .post-meta span:first-child::before { content: ""; margin: 0; }
+
+    .hero-image {
+      width:         100%;
+      height:        300px;
+      background:    linear-gradient(135deg, #4F8EF7 0%, #8B5CF6 100%);
+      border-radius: 12px;
+      margin-bottom: 36px;
+      display:       flex;
+      align-items:   center;
+      justify-content: center;
+      font-size:     60px;
+    }
+
+    h2 {
+      font-size:     1.3rem;
+      font-weight:   700;
+      margin:        36px 0 12px;
+      color:         #0d0f1a;
+    }
+    p { margin-bottom: 18px; color: #3a4560; }
+
+    blockquote {
+      border-left:  4px solid #4F8EF7;
+      margin:       24px 0;
+      padding:      12px 20px;
+      background:   #f0f4ff;
+      border-radius: 0 8px 8px 0;
+      font-style:   italic;
+      color:        #3a4560;
+    }
+
+    .tip-box {
+      background:    #fff;
+      border:        1px solid #e0e7ff;
+      border-radius: 10px;
+      padding:       16px 20px;
+      margin:        24px 0;
+    }
+    .tip-box strong { display: block; margin-bottom: 4px; color: #4F8EF7; font-size: 13px; text-transform: uppercase; }
+
+    /* ── Completely unrelated classes to verify no CSS leakage from widget ── */
+    /* These mimic the kind of classes a typical website might already have.   */
+    .button { background: #1a1a2e; color: #fff; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+    .header { font-size: 24px; font-weight: bold; }
+    .close-btn { font-size: 18px; color: red; cursor: pointer; }
+    .input { border: 1px solid #ccc; padding: 8px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+  <!-- FAKE SITE NAVIGATION -->
+  <nav class="site-nav">
+    <span class="logo">ViveBlog</span>
+    <a href="#">Home</a>
+    <a href="#">Articles</a>
+    <a href="#">Docs</a>
+    <a href="#">About</a>
+  </nav>
+
+  <!-- FAKE BLOG ARTICLE (the realistic page content the widget sits on top of) -->
+  <div class="page-wrapper">
+
+    <span class="post-tag">AI &amp; Automation</span>
+    <h1>How Retrieval-Augmented Generation Is Changing the Way We Build FAQ Systems</h1>
+
+    <div class="post-meta">
+      <span>Vive Team</span>
+      <span>September 14, 2026</span>
+      <span>8 min read</span>
+    </div>
+
+    <div class="hero-image">&#x1F4DA;</div>
+
+    <p>
+      Traditional FAQ pages are static. They sit in a spreadsheet, get copy-pasted into a
+      CMS, and are promptly forgotten until a support ticket points out they are six months
+      out of date. For small businesses handling hundreds of similar questions a day, this
+      approach simply does not scale.
+    </p>
+
+    <p>
+      Retrieval-Augmented Generation — RAG for short — takes a fundamentally different
+      approach. Instead of hand-crafting answers, you feed the system your existing documents
+      (PDFs, Word files, website content) and let the AI synthesise precise, cited answers
+      on demand. The result feels like a knowledgeable team member, not a search bar.
+    </p>
+
+    <h2>What makes RAG different from a plain chatbot?</h2>
+
+    <p>
+      A plain LLM (like GPT-4 or Gemini) answers from its training data — which was frozen
+      at a certain date and contains no knowledge of your specific business. Ask it your
+      return policy and it will hallucinate something plausible. RAG solves this by
+      retrieving relevant chunks from <em>your</em> documents first, then asking the LLM
+      to answer using only that retrieved context. The LLM becomes a reasoning layer on
+      top of your own knowledge base, not a replacement for it.
+    </p>
+
+    <blockquote>
+      "RAG is not magic — it is engineering. Good document structure, sensible chunk sizes,
+      and a well-tuned retrieval threshold matter more than the choice of LLM model."
+    </blockquote>
+
+    <h2>Building the pipeline: the three key stages</h2>
+
+    <p>
+      Every RAG system, no matter how sophisticated, boils down to three stages: ingest,
+      retrieve, and generate. During <strong>ingest</strong>, your documents are split into
+      overlapping chunks, converted to vector embeddings (numerical representations of
+      meaning), and stored in a vector database such as ChromaDB or Pinecone.
+    </p>
+
+    <p>
+      During <strong>retrieval</strong>, the user query is also converted to an embedding and
+      the database returns the N most semantically similar chunks — not keyword matches,
+      but chunks whose <em>meaning</em> is closest to the question. Finally, during
+      <strong>generation</strong>, those chunks are injected into a prompt and the LLM
+      generates a grounded, source-cited answer.
+    </p>
+
+    <div class="tip-box">
+      <strong>&#x1F4A1; Implementation note</strong>
+      For the Vive FAQ chatbot we use ChromaDB for local vector storage, OpenAI embeddings
+      (text-embedding-3-small), and GPT-4o-mini for generation. Swap any layer independently
+      — the pipeline is modular by design.
+    </div>
+
+    <h2>Embedding the widget: the final mile</h2>
+
+    <p>
+      Once the backend pipeline is running, client-facing delivery is handled by a single
+      JavaScript file — <code>widget.js</code> — that injects a floating chat button onto
+      any existing webpage. No framework dependencies, no build step, no npm required.
+      The client pastes one line and gets a fully functional AI FAQ assistant.
+    </p>
+
+    <p>
+      Click the chat button in the bottom-right corner of this page to see the widget in
+      action. Currently running in mock mode — real API integration coming next.
+    </p>
+
+    <!-- Intentionally using the same class names that a real site might have,
+         to verify the widget CSS scoping (myw- prefix) prevents any leakage. -->
+    <p class="header" style="font-size:16px; font-weight: normal; color: #3a4560;">
+      This paragraph uses a class called <code>.header</code> — the same name that exists
+      inside the widget, but scoped with <code>myw-</code>. If you see this text styled
+      incorrectly, there is a CSS namespace collision worth investigating.
+    </p>
+
+    <p>
+      Scroll down to verify the floating button stays fixed in the corner regardless of
+      scroll position — that is the <code>position: fixed</code> CSS at work.
+    </p>
+
+    <!-- Extra content to make the page scrollable -->
+    <h2>Further reading</h2>
+    <p>
+      Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor
+      incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud
+      exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure
+      dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+    </p>
+    <p>
+      Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt
+      mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit
+      voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab
+      illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
+    </p>
+    <p>
+      Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia
+      consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro
+      quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit.
+    </p>
+    <p>
+      At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium
+      voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint
+      occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt.
+    </p>
+
+    <!-- END of article content -->
+
+  </div><!-- /.page-wrapper -->
+
+  <!--
+    THE WIDGET EMBED LINE
+    ======================
+    This is the single line that would go on a client site.
+    We put it at the bottom of <body> (not in <head>) for two reasons:
+      1. PERFORMANCE: The browser renders the page content first, then loads the widget.
+         The user sees a real page immediately rather than waiting for the widget JS to parse.
+      2. DOM AVAILABILITY: By the time the script runs, document.body already exists,
+         so widget.js can safely call document.body.appendChild() without any timing hacks.
+  -->
+  <script src="widget.js"></script>
+
+</body>
+</html>
