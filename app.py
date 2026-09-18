@@ -45,7 +45,7 @@ importlib.reload(config)
 import rag_engine
 importlib.reload(rag_engine)
 from rag_engine import answer_question, get_chroma_collection
-from ingest import index_documents
+from ingest import index_documents, is_chroma_db_empty_or_missing
 
 
 # ==============================================================================
@@ -144,7 +144,50 @@ st.markdown("""
 
 
 # ==============================================================================
-# 3. EARLY STARTUP INITIALIZATION & RESOURCE WARMUP
+# 3. KNOWLEDGE BASE STARTUP CHECK (STREAMLIT CLOUD AUTO-INGESTION)
+# ==============================================================================
+# PLAIN-ENGLISH EXPLANATION FOR CLOUD DEPLOYMENT:
+# Why is this startup check needed?
+# -----------------------------------------------------------------------------
+# When developing locally, developers run `python ingest.py` in their terminal to
+# extract PDF text, generate vector embeddings, and save the ChromaDB database to 'chroma_db/'.
+#
+# However, the 'chroma_db/' directory is intentionally excluded from git via '.gitignore'
+# so we do not commit large binary vector database files into our GitHub repository.
+#
+# When deploying to Streamlit Cloud, Streamlit pulls the repository directly from GitHub.
+# Because 'chroma_db/' was not committed, it does NOT exist when the cloud container starts.
+# Unlike a local computer, Streamlit Cloud does not give you an interactive terminal to
+# manually run 'python ingest.py' before starting the web server.
+#
+# Without this startup check, the app crashes with a FileNotFoundError as soon as it launches.
+#
+# What this check does:
+# Before any queries or cached resources are loaded, it checks whether 'chroma_db/' is
+# missing or empty. If so, it displays:
+#   "Setting up knowledge base for the first time, this may take a minute..."
+# and automatically triggers the ingestion pipeline (extracting text from PDFs in 'docs/',
+# chunking, embedding, and populating ChromaDB). Once completed, the app continues loading normally.
+
+if is_chroma_db_empty_or_missing():
+    with st.spinner("Setting up knowledge base for the first time, this may take a minute..."):
+        try:
+            total_indexed = index_documents(force_reindex=True)
+            # Clear Streamlit's cached resource so it connects to the newly populated DB
+            get_cached_collection.clear()
+            if hasattr(rag_engine, "reset_chroma_collection"):
+                rag_engine.reset_chroma_collection()
+            if total_indexed > 0:
+                st.toast(f"Knowledge base ready! Indexed {total_indexed} chunks.", icon="✅")
+            else:
+                st.warning("Knowledge base initialization finished, but no PDF documents were found in 'docs/'.", icon="⚠️")
+        except Exception as e:
+            st.error(f"❌ Failed to build knowledge base on startup: {e}")
+            st.stop()
+
+
+# ==============================================================================
+# 4. EARLY STARTUP INITIALIZATION & RESOURCE WARMUP
 # ==============================================================================
 # Pre-load the embedding model and ChromaDB connection early so the user's first
 # question does not experience cold-start latency.
@@ -157,7 +200,7 @@ with st.spinner("Loading assistant..."):
 
 
 # ==============================================================================
-# 4. SESSION STATE INITIALIZATION (CHAT MEMORY)
+# 5. SESSION STATE INITIALIZATION (CHAT MEMORY)
 # ==============================================================================
 # When Streamlit reruns, local variables reset. 'st.session_state' is how we
 # persist variables across reruns (such as the list of past messages).
@@ -174,7 +217,7 @@ if "messages" not in st.session_state:
 
 
 # ==============================================================================
-# 5. SIDEBAR - SETTINGS, TOOLS & INFO
+# 6. SIDEBAR - SETTINGS, TOOLS & INFO
 # ==============================================================================
 with st.sidebar:
     st.title(f"{config.APP_ICON} {config.APP_TITLE}")
@@ -268,7 +311,7 @@ with st.sidebar:
 
 
 # ==============================================================================
-# 6. MAIN CHAT AREA
+# 7. MAIN CHAT AREA
 # ==============================================================================
 # Header display
 st.markdown(f"""
@@ -294,7 +337,7 @@ for col, q in zip(quick_cols, sample_questions):
 
 
 # ==============================================================================
-# 7. RENDER CONVERSATION HISTORY
+# 8. RENDER CONVERSATION HISTORY
 # ==============================================================================
 # Every time the user interacts, Streamlit displays all saved messages
 for msg in st.session_state.messages:
@@ -328,7 +371,7 @@ for msg in st.session_state.messages:
 
 
 # ==============================================================================
-# 8. HANDLE USER INPUT & GENERATE RESPONSE
+# 9. HANDLE USER INPUT & GENERATE RESPONSE
 # ==============================================================================
 # Accept input from chat_input bar or from a clicked quick question chip
 prompt = st.chat_input("Ask a question about TaskFlow documentation...")

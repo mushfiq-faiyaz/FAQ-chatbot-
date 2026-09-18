@@ -40,7 +40,7 @@ from chromadb.utils import embedding_functions
 import config
 
 
-def find_pdf_files(docs_dir: Path) -> List[Path]:
+def find_pdf_files(docs_dir: Path = config.DOCS_DIR) -> List[Path]:
     """
     Scans the documents directory and all subdirectories for PDF files (.pdf).
     Using recursive search (rglob) ensures that documents placed in subfolders
@@ -137,15 +137,15 @@ def split_text_into_chunks(
     return chunks
 
 
-def prepare_documents_for_indexing() -> List[Dict[str, Any]]:
+def prepare_documents_for_indexing(docs_dir: Path = config.DOCS_DIR) -> List[Dict[str, Any]]:
     """
-    Reads all PDFs, breaks each page into overlapping chunks,
+    Reads all PDFs from the specified directory, breaks each page into overlapping chunks,
     and attaches rich metadata (source document, page number, chunk index).
     """
-    pdf_files = find_pdf_files(config.DOCS_DIR)
+    pdf_files = find_pdf_files(docs_dir)
     
     if not pdf_files:
-        print(f"⚠️ No PDF files found in '{config.DOCS_DIR}'.")
+        print(f"⚠️ No PDF files found in '{docs_dir}'.")
         return []
 
     print(f"📂 Found {len(pdf_files)} PDF document(s) to process:")
@@ -186,19 +186,84 @@ def prepare_documents_for_indexing() -> List[Dict[str, Any]]:
     return all_chunks
 
 
-def index_documents(force_reindex: bool = True):
+def is_chroma_db_empty_or_missing() -> bool:
+    """
+    Checks whether the ChromaDB vector database directory is missing or empty.
+
+    WHY THIS CHECK IS NEEDED FOR CLOUD DEPLOYMENT (STREAMLIT CLOUD):
+    ----------------------------------------------------------------
+    1. Git Ignores Large Vector Files:
+       The ChromaDB vector database folder ('chroma_db/') stores local SQLite and
+       index files containing vector embeddings. To keep git repositories lightweight
+       and avoid syncing large binaries, 'chroma_db/' is listed in .gitignore.
+
+    2. Streamlit Cloud Starts Clean:
+       When deployed on Streamlit Cloud, Streamlit clones the repository directly from
+       GitHub. Because 'chroma_db/' is not in git, the folder does not exist on the
+       cloud server.
+
+    3. No Interactive Terminal on Cloud:
+       In local development, you can run 'python ingest.py' once in the terminal.
+       On Streamlit Cloud, there is no terminal to run manual commands before starting
+       the web server. The app starts immediately by executing 'app.py'.
+
+    4. Self-Healing Startup:
+       By checking if the ChromaDB folder is missing or empty upon startup, the app
+       can automatically detect first-time launch, extract text from PDFs in 'docs/',
+       generate embeddings, and populate ChromaDB on the fly before users start chatting.
+
+    Returns:
+    - bool: True if the database is missing, empty, or uninitialized; False otherwise.
+    """
+    # 1. Directory does not exist
+    if not config.CHROMA_DB_DIR.exists():
+        return True
+
+    # 2. Directory exists but is empty or missing sqlite database file
+    try:
+        contents = list(config.CHROMA_DB_DIR.iterdir())
+        if not contents:
+            return True
+        sqlite_file = config.CHROMA_DB_DIR / "chroma.sqlite3"
+        if not sqlite_file.exists():
+            return True
+
+        # 3. Collection does not exist or contains 0 items
+        client = chromadb.PersistentClient(path=str(config.CHROMA_DB_DIR))
+        existing_collections = [c.name for c in client.list_collections()]
+        if config.COLLECTION_NAME not in existing_collections:
+            return True
+        collection = client.get_collection(name=config.COLLECTION_NAME)
+        if collection.count() == 0:
+            return True
+    except Exception:
+        # If any error occurs reading the DB (e.g. corrupted files), treat as empty
+        return True
+
+    return False
+
+
+def index_documents(force_reindex: bool = True, docs_dir: Path = config.DOCS_DIR) -> int:
     """
     Connects to ChromaDB, generates embeddings for each chunk, and saves them to disk.
     
+    This function is designed to be reusable:
+    - Run standalone: python ingest.py
+    - Called from web apps: invoked during app.py startup or via a 'Re-index' button.
+
     Parameters:
-    - force_reindex: If True, deletes any previous collection of the same name and
+    - force_reindex (bool): If True, deletes any previous collection of the same name and
       re-indexes from scratch. This guarantees that deleted or modified documents
       are updated cleanly.
+    - docs_dir (Path): The directory containing source PDF documents (defaults to config.DOCS_DIR).
+
+    Returns:
+    - int: The total number of chunks indexed into ChromaDB.
     """
-    chunks = prepare_documents_for_indexing()
+    chunks = prepare_documents_for_indexing(docs_dir)
     if not chunks:
         print("❌ No text chunks to index. Exiting.")
-        return
+        return 0
 
     print(f"\n📦 Initializing ChromaDB vector database at: {config.CHROMA_DB_DIR}")
     # PersistentClient saves data directly to a local directory on your hard drive
@@ -243,10 +308,12 @@ def index_documents(force_reindex: bool = True):
     print(f"\n🎉 SUCCESS! All {len(ids)} chunks have been successfully embedded and indexed.")
     print(f"📁 Database saved to: {config.CHROMA_DB_DIR}")
     print("💡 You can now run 'python test_search.py' to test search queries against this index!")
+    return len(ids)
 
 
 if __name__ == "__main__":
     print("=" * 60)
     print(" TaskFlow Document Ingestion & Embedding Pipeline")
     print("=" * 60)
-    index_documents(force_reindex=True)
+    total_indexed = index_documents(force_reindex=True)
+    print(f"✅ Ingestion complete. Total chunks indexed: {total_indexed}")
