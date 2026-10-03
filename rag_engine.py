@@ -88,12 +88,71 @@ def reset_chroma_collection():
 
 
 # ==============================================================================
-# 2. DOCUMENT RETRIEVAL (FINDING RELEVANT CHUNKS)
+# 2. QUERY EXPANSION (SYNONYM BRIDGING)
+# ==============================================================================
+# Users often phrase questions differently from the wording used in documents.
+# For example, a user might say "yearly billing" but the PDF always says "annual".
+# This lightweight expansion appends synonym terms to the search query so the
+# vector search can find the right chunks even with vocabulary mismatches.
+# The expansion is ONLY used for retrieval — it is not shown to the user or LLM.
+
+_SYNONYM_GROUPS: list[tuple[str, list[str]]] = [
+    # Billing cycle synonyms
+    ("annual",      ["yearly", "per year", "year billing", "year plan", "12-month"]),
+    ("monthly",     ["per month", "month billing", "month plan"]),
+    # User / seat synonyms
+    ("users",       ["seats", "members", "team members", "user seats", "people"]),
+    ("user",        ["seat", "member", "person"]),
+    # Plan-name corrections (map to closest LedgerFlow plan)
+    ("solo",        ["individual", "personal", "starter", "basic"]),
+    ("enterprise",  ["business", "corporate", "company"]),
+    ("team",        ["group", "professional", "pro"]),
+    # Discount / savings synonyms
+    ("save",        ["discount", "savings", "cheaper", "less", "cheaper"]),
+    ("free",        ["no cost", "zero cost", "gratis"]),
+    # Cancel / refund synonyms
+    ("cancel",      ["cancellation", "terminate", "end subscription", "stop plan"]),
+    ("refund",      ["money back", "reimbursement", "get money back"]),
+]
+
+
+def expand_query(query: str) -> str:
+    """
+    Appends synonym terms to the query to improve vector search recall.
+
+    For each synonym group, if any term in the group already appears in the
+    query (case-insensitive), the canonical key term is appended (if not already
+    present) so the embedding captures both wordings.
+
+    Example:
+      "annual billing" → unchanged (canonical term already present)
+      "yearly billing" → "yearly billing annual"
+      "Business plan"  → "Business plan enterprise"
+    """
+    query_lower = query.lower()
+    extra_terms: list[str] = []
+
+    for canonical, synonyms in _SYNONYM_GROUPS:
+        # If the canonical term is already in the query, nothing to add
+        if canonical in query_lower:
+            continue
+        # If any synonym appears in the query, append the canonical term
+        if any(syn in query_lower for syn in synonyms):
+            extra_terms.append(canonical)
+
+    if extra_terms:
+        return query + " " + " ".join(extra_terms)
+    return query
+
+
+# ==============================================================================
+# 3. DOCUMENT RETRIEVAL (FINDING RELEVANT CHUNKS)
 # ==============================================================================
 def retrieve_relevant_chunks(
     query: str,
     top_k: int = config.TOP_K_RESULTS
 ) -> List[Dict[str, Any]]:
+
     """
     Finds the most relevant document chunks in ChromaDB for a given user query.
     
@@ -109,9 +168,13 @@ def retrieve_relevant_chunks(
     if total_docs == 0:
         return []
 
+    # Expand query with synonyms to bridge vocabulary gaps between user language
+    # and document wording (e.g. "yearly" → adds "annual"; "business plan" → adds "enterprise")
+    expanded_query = expand_query(query)
+
     # Query ChromaDB with semantic search
     results = collection.query(
-        query_texts=[query],
+        query_texts=[expanded_query],
         n_results=min(top_k, total_docs)
     )
 
@@ -133,7 +196,7 @@ def retrieve_relevant_chunks(
 
 
 # ==============================================================================
-# 3. PROMPT FORMATTING (TEACHING THE AI)
+# 4. PROMPT FORMATTING (TEACHING THE AI)
 # ==============================================================================
 def build_rag_prompt(query: str, chunks: List[Dict[str, Any]]) -> str:
     """
