@@ -152,7 +152,8 @@
       Initially hidden (display:none). When toggled open, we switch to flex
       so the three internal regions (header, messages, input) stack vertically
       and fill the available height correctly.
-      Width uses min(350px, calc(100vw - 40px)) to prevent overflowing narrow screens.
+      Width uses min(350px, calc(100vw - 40px)) normally, and expands smoothly
+      to wider width (up to 620px) on desktop when showing a comparison table.
     */
     .myw-window {
       position:       fixed;
@@ -161,7 +162,7 @@
       z-index:        2147483646;
       width:          min(350px, calc(100vw - 40px));
       max-width:      calc(100vw - 20px);
-      height:         min(500px, calc(100vh - 120px));
+      height:         min(520px, calc(100vh - 120px));
       background:     var(--myw-bg);
       border-radius:  var(--myw-radius);
       box-shadow:     var(--myw-shadow);
@@ -169,6 +170,7 @@
       flex-direction: column;
       overflow:       hidden;
       font-family:    var(--myw-font);
+      transition:     width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.3s ease;
     }
     .myw-window.myw-open {
       display:   flex;
@@ -177,6 +179,13 @@
     @keyframes myw-slideUp {
       from { opacity: 0; transform: translateY(20px); }
       to   { opacity: 1; transform: translateY(0);    }
+    }
+
+    /* Desktop wide mode for side-by-side comparisons */
+    @media (min-width: 581px) {
+      .myw-window.myw-wide {
+        width: min(620px, calc(100vw - 40px));
+      }
     }
 
     /* HEADER BAR */
@@ -322,30 +331,144 @@
       TABLE & STACKED CARD PRESENTATION
       ===================================
       Allows bot bubbles displaying structured tabular data to expand
-      comfortably up to 95% width so content is clear and never cramped.
+      comfortably up to 98% width so content is clear and never cramped.
     */
+    .myw-msg-row.myw-bot .myw-bubble:has(.myw-table-scroll-container),
     .myw-msg-row.myw-bot .myw-bubble:has(.myw-table-wrapper),
     .myw-msg-row.myw-bot .myw-bubble:has(.myw-card-list),
     .myw-msg-row.myw-bot .myw-bubble.myw-has-table {
-      max-width: 95%;
-      width: 95%;
+      max-width: 98%;
+      width: 98%;
     }
 
     /*
-      1. COMPACT VISUAL TABLE (used for <= 2 columns that fit comfortably)
-      ===================================================================
-      Polished, modern table design matching widget color palette,
-      fonts, and rounded border corners with no horizontal scroll required.
+      1. SIDE-BY-SIDE COMPARISON TABLE & SWIPE CONTAINER
+      ===================================================
+      Real side-by-side table layout with:
+      - Plan names across the top and features down the left side.
+      - Sticky top header and sticky left feature column so feature labels stay visible on swipe.
+      - Smooth touch/swipe scrolling with subtle right-edge fade indicator.
     */
-    .myw-table-wrapper {
+    .myw-table-scroll-container {
+      position: relative;
       width: 100%;
-      overflow-x: auto;
       margin: 8px 0;
       border-radius: 10px;
+      overflow: hidden;
       border: 1px solid #dbe4f0;
       background: #ffffff;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
     }
+    /* Subtle right-edge faded gradient hint indicating more columns are available to swipe */
+    .myw-table-scroll-container::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 28px;
+      pointer-events: none;
+      background: linear-gradient(to right, rgba(255, 255, 255, 0), rgba(79, 142, 247, 0.22));
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      z-index: 6;
+    }
+    .myw-table-scroll-container.myw-has-overflow:not(.myw-scrolled-end)::after {
+      opacity: 1;
+    }
+
+    .myw-table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: visible;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: #ccd6f0 transparent;
+    }
+    .myw-table-wrapper::-webkit-scrollbar {
+      height: 4px;
+    }
+    .myw-table-wrapper::-webkit-scrollbar-thumb {
+      background: #ccd6f0;
+      border-radius: 4px;
+    }
+
+    .myw-comparison-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 12px;
+      line-height: 1.35;
+      text-align: left;
+    }
+    .myw-comparison-table thead th {
+      background: #eef4ff;
+      color: var(--myw-primary-dark);
+      font-weight: 700;
+      padding: 8px 10px;
+      border-bottom: 2px solid #dbe4f0;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      white-space: normal;
+      min-width: 95px;
+      text-align: center;
+    }
+    .myw-comparison-table thead th:first-child {
+      text-align: left;
+      min-width: 110px;
+      max-width: 135px;
+    }
+    .myw-comparison-table tbody td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #edf2f7;
+      color: var(--myw-bubble-bot-text);
+      word-break: normal;
+      overflow-wrap: break-word;
+      white-space: normal;
+      min-width: 95px;
+      text-align: center;
+      background: #ffffff;
+    }
+    .myw-comparison-table tbody tr:nth-child(even) td {
+      background: #f8fafd;
+    }
+    .myw-comparison-table tbody tr:hover td {
+      background: #f1f6ff;
+    }
+    .myw-comparison-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Sticky left feature column: stays in place while plan columns slide past */
+    .myw-comparison-table .myw-sticky-col {
+      position: sticky;
+      left: 0;
+      font-weight: 600;
+      color: #1e293b;
+      text-align: left;
+      border-right: 1.5px solid #dbe4f0;
+      box-shadow: 2px 0 5px rgba(0, 0, 0, 0.04);
+    }
+    .myw-comparison-table thead th.myw-sticky-col {
+      z-index: 4;
+      background: #eef4ff;
+    }
+    .myw-comparison-table tbody td.myw-sticky-col {
+      z-index: 3;
+      background: #ffffff;
+    }
+    .myw-comparison-table tbody tr:nth-child(even) td.myw-sticky-col {
+      background: #f8fafd;
+    }
+    .myw-comparison-table tbody tr:hover td.myw-sticky-col {
+      background: #f1f6ff;
+    }
+
+    /*
+      2. COMPACT 2-COLUMN TABLE (used for simple key-value pairs)
+      ==========================================================
+    */
     .myw-table {
       width: 100%;
       border-collapse: collapse;
@@ -378,12 +501,9 @@
     }
 
     /*
-      2. STACKED CARD LAYOUT (used for multi-column tables > 2 columns)
-      ================================================================
-      In a compact ~350px widget, multi-column tables (e.g. 3, 4, 5+ columns like
-      pricing comparisons) would either force horizontal scrolling or unreadable
-      column squishing. Instead, each row becomes an elegant, self-contained card
-      with details stacked vertically — clean, scannable, and zero horizontal scroll.
+      3. STACKED CARD LAYOUT (used for answers about ONLY ONE plan)
+      ============================================================
+      Clean, self-contained card for single-plan descriptions with zero clutter.
     */
     .myw-card-list {
       display: flex;
@@ -850,6 +970,93 @@
       });
     }
 
+    // Helper: checks if a table represents a comparison of multiple plans / entities
+    function isMultiPlanComparison(headers, rows) {
+      var planRegex = /\b(free|solo|team|enterprise|pro|business|plus|starter|premium)\b/i;
+
+      // 1. Check if headers contain 2 or more plan names (e.g. Feature | Free | Solo | Team | Enterprise)
+      var plansInHeader = headers.filter(function(h) { return planRegex.test(h); }).length;
+      if (plansInHeader >= 2) return true;
+
+      // 2. Check if table rows contain 2 or more plans
+      if (rows.length >= 2) {
+        var firstHeader = (headers[0] || "").toLowerCase();
+        var isPlanHeader = /^(plan|tier|package|edition|subscription|item)/i.test(firstHeader);
+        var plansInFirstCol = rows.filter(function(r) { return r[0] && planRegex.test(r[0]); }).length;
+        if (isPlanHeader || plansInFirstCol >= 2) return true;
+
+        // Any 3+ column table with 2+ rows having an identifying column represents multi-item comparison
+        if (headers.length >= 3 && isIdentifyingFirstColumn(headers, rows)) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    // Helper: transposes a Plan-per-row table so Plan names appear across the top (columns)
+    // and Feature/Attribute names run down the left side (rows).
+    function formatComparisonTable(headers, rows) {
+      var planRegex = /\b(free|solo|team|enterprise|pro|business|plus|starter|premium)\b/i;
+      var plansInHeader = headers.filter(function(h) { return planRegex.test(h); }).length;
+
+      // If headers already have plans across the top, keep original orientation
+      if (plansInHeader >= 2) {
+        return { headers: headers, rows: rows };
+      }
+
+      var firstHeader = (headers[0] || "").toLowerCase();
+      var isPlanHeader = /^(plan|tier|package|edition|subscription)/i.test(firstHeader);
+      var plansInFirstCol = rows.filter(function(r) { return r[0] && planRegex.test(r[0]); }).length;
+
+      if (isPlanHeader || plansInFirstCol >= 2 || (headers.length >= 3 && rows.length >= 2)) {
+        var newFirstHeader = headers[0] && /^(plan|tier)/i.test(headers[0]) ? "Feature / Plan" : (headers[0] || "Feature");
+        var newHeaders = [newFirstHeader];
+        for (var r = 0; r < rows.length; r++) {
+          newHeaders.push(rows[r][0] || ("Plan " + (r + 1)));
+        }
+
+        var newRows = [];
+        for (var c = 1; c < headers.length; c++) {
+          var featName = headers[c] || ("Feature " + c);
+          var rowData = [featName];
+          for (var r = 0; r < rows.length; r++) {
+            rowData.push(rows[r][c] !== undefined && rows[r][c] !== "" ? rows[r][c] : "—");
+          }
+          newRows.push(rowData);
+        }
+        return { headers: newHeaders, rows: newRows };
+      }
+
+      return { headers: headers, rows: rows };
+    }
+
+    // Helper: renders side-by-side comparison table with sticky feature column and sticky top header
+    function renderComparisonTableHtml(headers, rows) {
+      var tHtml = ['<div class="myw-table-scroll-container"><div class="myw-table-wrapper"><table class="myw-comparison-table">'];
+      
+      tHtml.push('<thead><tr>');
+      for (var h = 0; h < headers.length; h++) {
+        var stickyClass = h === 0 ? ' class="myw-sticky-col"' : '';
+        tHtml.push('<th' + stickyClass + '>' + formatInline(headers[h]) + '</th>');
+      }
+      tHtml.push('</tr></thead>');
+      
+      tHtml.push('<tbody>');
+      for (var r = 0; r < rows.length; r++) {
+        tHtml.push('<tr>');
+        var row = rows[r];
+        for (var c = 0; c < headers.length; c++) {
+          var stickyClass = c === 0 ? ' class="myw-sticky-col"' : '';
+          var cellVal = row[c] !== undefined && row[c] !== "" ? row[c] : "—";
+          tHtml.push('<td' + stickyClass + '>' + formatInline(cellVal) + '</td>');
+        }
+        tHtml.push('</tr>');
+      }
+      tHtml.push('</tbody></table></div></div>');
+      return tHtml.join("");
+    }
+
     // Helper: renders a clean, modern HTML table for compact 1-2 column tables
     function renderTableHtml(headers, alignments, rows) {
       var tHtml = ['<div class="myw-table-wrapper"><table class="myw-table">'];
@@ -876,7 +1083,7 @@
       return tHtml.join("");
     }
 
-    // Helper: renders multi-column tables as stacked cards to eliminate horizontal scrolling
+    // Helper: renders multi-column tables as stacked cards for SINGLE PLAN descriptions
     function renderCardLayoutHtml(headers, rows) {
       var cHtml = ['<div class="myw-card-list">'];
       
@@ -1023,21 +1230,25 @@
           j++;
         }
 
+        var isComparison = isMultiPlanComparison(headers, rows);
         var hasIdentifier = isIdentifyingFirstColumn(headers, rows);
 
-        if (!hasIdentifier) {
-          // Safety Net: Missing proper identifying first column.
-          // Fall back to clean list (or standard 2-col table where headers prevent confusion)
+        if (isComparison) {
+          // Multi-plan comparison: format side-by-side with plans across top & features down left
+          var formattedTable = formatComparisonTable(headers, rows);
+          html.push(renderComparisonTableHtml(formattedTable.headers, formattedTable.rows));
+        } else if (!hasIdentifier) {
+          // Safety Net: Missing proper identifying first column
           if (headers.length === 1 || headers.length > 2) {
             html.push(renderFallbackListHtml(headers, rows));
           } else {
             html.push(renderTableHtml(headers, alignments, rows));
           }
-        } else if (headers.length > 2) {
-          // Multi-column table with proper identifier: stacked card layout
+        } else if (rows.length === 1 && headers.length > 2) {
+          // Single plan description: retain clean stacked card layout
           html.push(renderCardLayoutHtml(headers, rows));
         } else {
-          // 2-column table with proper identifier: clean visual table
+          // Standard 2-column key-value table
           html.push(renderTableHtml(headers, alignments, rows));
         }
 
@@ -1073,6 +1284,38 @@
   }
 
   /**
+   * attachTableScrollListener(container)
+   * ─────────────────────────────────────
+   * Watches horizontal scroll progress on side-by-side tables and manages the
+   * right-edge faded gradient hint so users see a visual clue whenever more columns
+   * can be swiped.
+   */
+  function attachTableScrollListener(container) {
+    if (!container) return;
+    var wrapper = container.querySelector(".myw-table-wrapper");
+    if (!wrapper) return;
+
+    function updateScrollState() {
+      var maxScroll = wrapper.scrollWidth - wrapper.clientWidth;
+      if (maxScroll > 2) {
+        container.classList.add("myw-has-overflow");
+        if (wrapper.scrollLeft >= maxScroll - 4) {
+          container.classList.add("myw-scrolled-end");
+        } else {
+          container.classList.remove("myw-scrolled-end");
+        }
+      } else {
+        container.classList.remove("myw-has-overflow");
+        container.classList.add("myw-scrolled-end");
+      }
+    }
+
+    wrapper.addEventListener("scroll", updateScrollState, { passive: true });
+    updateScrollState();
+    setTimeout(updateScrollState, 100);
+  }
+
+  /**
    * appendMessage(text, sender)
    * ────────────────────────────
    * Creates and inserts a message bubble.
@@ -1081,8 +1324,8 @@
    * - User messages: always inserted using .textContent to prevent XSS attacks.
    *   User input is strictly treated as plain text and never interpreted as HTML.
    * - Bot messages: converted via markdownToHtml() (which escapes raw HTML, converts
-   *   tables to visual tables or cards, and formats inline markdown) and inserted
-   *   using .innerHTML.
+   *   comparison tables to side-by-side sticky tables, single-plan tables to cards,
+   *   and formats inline markdown) and inserted using .innerHTML.
    *
    * @param {string} text   - Message text to display.
    * @param {string} sender - 'user' or 'bot'.
@@ -1102,10 +1345,23 @@
     if (sender === "bot") {
       var rendered = markdownToHtml(text);
       bubble.innerHTML = rendered;
-      // If table, card layout, or fallback list is present, expand bubble width for spacious readability
-      if (rendered.indexOf("myw-table-wrapper") !== -1 || rendered.indexOf("myw-card-list") !== -1 || rendered.indexOf("myw-fallback-list") !== -1) {
+
+      // If comparison table is present, enable wide chat window on desktop
+      var hasComparison = rendered.indexOf("myw-comparison-table") !== -1;
+      if (hasComparison) {
+        bubble.classList.add("myw-has-table");
+        chatWindow.classList.add("myw-wide");
+      } else if (rendered.indexOf("myw-table-wrapper") !== -1 || rendered.indexOf("myw-card-list") !== -1 || rendered.indexOf("myw-fallback-list") !== -1) {
         bubble.classList.add("myw-has-table");
       }
+
+      // Initialize swipe scroll indicator listeners
+      setTimeout(function () {
+        var containers = bubble.querySelectorAll(".myw-table-scroll-container");
+        for (var idx = 0; idx < containers.length; idx++) {
+          attachTableScrollListener(containers[idx]);
+        }
+      }, 50);
     } else {
       bubble.textContent = text; // SAFE: plain textContent for user messages
     }
@@ -1228,6 +1484,11 @@
   function openChat() {
     isOpen = true;
     chatWindow.classList.add("myw-open");
+    if (msgContainer.querySelector(".myw-comparison-table")) {
+      chatWindow.classList.add("myw-wide");
+    } else {
+      chatWindow.classList.remove("myw-wide");
+    }
     iconChat.style.display  = "none";
     iconClose.style.display = "block";
     triggerBtn.setAttribute("aria-label", "Close chat");
