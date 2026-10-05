@@ -286,7 +286,7 @@
     /*
       FORMATTED CONTENT INSIDE BUBBLES
       =================================
-      Scoped styling for paragraphs, lists, and bold text inside bubbles.
+      Scoped styling for paragraphs, headings, dividers, lists, and bold text inside bubbles.
       - Zeroed margins on first/last children ensure the bubble's 10px 14px
         internal padding remains intact without unwanted extra whitespace.
       - Scoped to .myw-bubble to avoid any style leakage to client page.
@@ -297,6 +297,53 @@
     .myw-bubble p:last-child {
       margin-bottom: 0;
     }
+
+    /* Proper Bold Headings (#, ##, ###) */
+    .myw-bubble h1,
+    .myw-bubble h2,
+    .myw-bubble h3,
+    .myw-bubble h4,
+    .myw-bubble h5,
+    .myw-bubble h6 {
+      margin: 10px 0 6px 0;
+      font-weight: 700;
+      line-height: 1.35;
+      color: inherit;
+    }
+    .myw-bubble h1:first-child,
+    .myw-bubble h2:first-child,
+    .myw-bubble h3:first-child,
+    .myw-bubble h4:first-child,
+    .myw-bubble h5:first-child,
+    .myw-bubble h6:first-child {
+      margin-top: 0;
+    }
+    .myw-bubble h1:last-child,
+    .myw-bubble h2:last-child,
+    .myw-bubble h3:last-child,
+    .myw-bubble h4:last-child,
+    .myw-bubble h5:last-child,
+    .myw-bubble h6:last-child {
+      margin-bottom: 0;
+    }
+    .myw-bubble h1 { font-size: 16px; color: var(--myw-primary-dark); }
+    .myw-bubble h2 { font-size: 15px; color: var(--myw-primary-dark); }
+    .myw-bubble h3 { font-size: 14px; }
+    .myw-bubble h4 { font-size: 13.5px; }
+    .myw-bubble h5,
+    .myw-bubble h6 { font-size: 13px; }
+
+    /* Thin Horizontal Divider Lines (---) */
+    .myw-bubble hr,
+    .myw-bubble .myw-hr {
+      border: none;
+      border-top: 1px solid #dbe4f0;
+      margin: 10px 0;
+      width: 100%;
+    }
+    .myw-bubble hr:first-child { margin-top: 2px; }
+    .myw-bubble hr:last-child  { margin-bottom: 2px; }
+
     .myw-bubble ul {
       margin: 6px 0 8px 0;
       padding-left: 20px;
@@ -347,7 +394,7 @@
       Real side-by-side table layout with:
       - Plan names across the top and features down the left side.
       - Sticky top header and sticky left feature column so feature labels stay visible on swipe.
-      - Smooth touch/swipe scrolling with subtle right-edge fade indicator.
+      - Smooth touch/swipe scrolling with clear visible scrollbar and right-edge fade indicator.
     */
     .myw-table-scroll-container {
       position: relative;
@@ -383,21 +430,28 @@
       overflow-y: visible;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: thin;
-      scrollbar-color: #ccd6f0 transparent;
+      scrollbar-color: #8fa0c0 #f0f4f9;
     }
     .myw-table-wrapper::-webkit-scrollbar {
-      height: 4px;
+      height: 6px;
+    }
+    .myw-table-wrapper::-webkit-scrollbar-track {
+      background: #f0f4f9;
+      border-radius: 4px;
     }
     .myw-table-wrapper::-webkit-scrollbar-thumb {
-      background: #ccd6f0;
+      background: #8fa0c0;
       border-radius: 4px;
+    }
+    .myw-table-wrapper::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
     }
 
     .myw-comparison-table {
       width: 100%;
       border-collapse: separate;
       border-spacing: 0;
-      font-size: 12px;
+      font-size: 11.5px;
       line-height: 1.35;
       text-align: left;
     }
@@ -405,28 +459,28 @@
       background: #eef4ff;
       color: var(--myw-primary-dark);
       font-weight: 700;
-      padding: 8px 10px;
+      padding: 6px 8px;
       border-bottom: 2px solid #dbe4f0;
       position: sticky;
       top: 0;
       z-index: 2;
       white-space: normal;
-      min-width: 95px;
+      min-width: 80px;
       text-align: center;
     }
     .myw-comparison-table thead th:first-child {
       text-align: left;
-      min-width: 110px;
-      max-width: 135px;
+      min-width: 95px;
+      max-width: 120px;
     }
     .myw-comparison-table tbody td {
-      padding: 7px 10px;
+      padding: 6px 8px;
       border-bottom: 1px solid #edf2f7;
       color: var(--myw-bubble-bot-text);
       word-break: normal;
       overflow-wrap: break-word;
       white-space: normal;
-      min-width: 95px;
+      min-width: 80px;
       text-align: center;
       background: #ffffff;
     }
@@ -471,24 +525,26 @@
     */
     .myw-table {
       width: 100%;
+      min-width: 100%;
       border-collapse: collapse;
-      font-size: 12.5px;
-      line-height: 1.4;
+      font-size: 12px;
+      line-height: 1.35;
       text-align: left;
     }
     .myw-table th {
       background: #eef4ff;
       color: var(--myw-primary-dark);
       font-weight: 600;
-      padding: 8px 10px;
+      padding: 6px 8px;
       border-bottom: 1px solid #dbe4f0;
       white-space: normal;
     }
     .myw-table td {
-      padding: 8px 10px;
+      padding: 6px 8px;
       border-bottom: 1px solid #edf2f7;
       color: var(--myw-bubble-bot-text);
-      word-break: break-word;
+      word-break: normal;
+      overflow-wrap: break-word;
     }
     .myw-table tr:last-child td {
       border-bottom: none;
@@ -1256,8 +1312,27 @@
         continue;
       }
 
-      // Check for bullet lines starting with "- "
-      var bulletMatch = line.match(/^\s*-\s+(.+)$/);
+      // Check for headings (# Heading, ## Heading, etc.)
+      var headingMatch = line.match(/^\s*(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        flushParagraph();
+        flushList();
+        var level = headingMatch[1].length;
+        var headingText = formatInline(headingMatch[2].trim());
+        html.push("<h" + level + " class=\"myw-h" + level + "\">" + headingText + "</h" + level + ">");
+        continue;
+      }
+
+      // Check for horizontal divider lines (---, ***, ___, - - -, * * *, _ _ _)
+      if (/^\s*(?:-{3,}|\*{3,}|_{3,}|(?:-\s*){3,}|(?:\*\s*){3,}|(?:_\s*){3,})\s*$/.test(trimmed)) {
+        flushParagraph();
+        flushList();
+        html.push("<hr class=\"myw-hr\">");
+        continue;
+      }
+
+      // Check for bullet lines starting with "- " or "* "
+      var bulletMatch = line.match(/^\s*[-\*]\s+(.+)$/);
 
       if (bulletMatch) {
         flushParagraph();
@@ -1266,6 +1341,7 @@
           inList = true;
         }
         html.push("<li>" + formatInline(bulletMatch[1].trim()) + "</li>");
+        continue;
       } else if (trimmed === "") {
         // Blank line ends current paragraph or list block
         flushParagraph();
